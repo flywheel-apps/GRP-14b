@@ -2,14 +2,14 @@
   "name": "grp-14b-hanging-test",
   "label": "GRP-14b: Freesurfer Longitudinal Report Aggregation",
   "description": "Find all CSV file results created by GRP-14 gear runs and combine them into single CSV files (Freesurfer BIDS App 6.0.1-5).",
-  "version": "0.0.1-threadpool",
+  "version": "0.0.3-threadpool",
   "custom": {
     "gear-builder": {
       "category": "analysis",
-      "image": "flywheel/grp-14b-hanging-test:0.0.1-threadpool"
+      "image": "flywheel/grp-14b-hanging-test:0.0.3-threadpool"
     },
     "flywheel": {
-      "suite": "FreeSurfer"
+      "suite": "Nicolas"
     },
     "license": {
       "non-commercial-use-only": false,

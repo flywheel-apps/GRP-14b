@@ -20,4 +20,5 @@ COPY run.py ${FLYWHEEL}/run.py
 
 # Configure entrypoint
 RUN chmod a+x ${FLYWHEEL}/run.py
-ENTRYPOINT ["/flywheel/v0/run.py"]
+
+#RUN sed -i 's/ThreadPool/Pool/g' /usr/local/lib/python3.8/site-packages/flywheel/api_client.py

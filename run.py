@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Aggregate Freesurfer Longitudinal Pipeline results.
 
-Run at the project level, search through analyses for the given gear (and
+Run at the project level, search through analyses for the given gear (and 
 optional gear version) to find all csv files.  Read and combine them into
 individual files for each listed in CSV_WHITELIST (defined below).
 """
@@ -18,12 +18,12 @@ import pandas as pd
 import flywheel
 
 
-CSV_WHITELIST = ['_aparc_thick_left.csv',
+CSV_WHITELIST = ['_aparc_thick_left.csv', 
                  '_aparc_thick_right.csv',
-                 '_aparc_area_left.csv',
-                 '_aparc_area_right.csv',
-                 '_aparc_vol_left.csv',
-                 '_aparc_vol_right.csv',
+                 '_aparc_area_left.csv', 
+                 '_aparc_area_right.csv', 
+                 '_aparc_vol_left.csv', 
+                 '_aparc_vol_right.csv', 
                  '_aseg_vol.csv']
 
 RETURN_VALUE = 0
@@ -65,7 +65,7 @@ except Exception as e:
     RETURN_VALUE = 1
     LOG.info(f'This gear must be run at the project level.')
     LOG.info(f'{log_name} returning {RETURN_VALUE}')
-    os._exit(RETURN_VALUE)
+    sys.exit(RETURN_VALUE)
 
 GEAR_NAME = config['name-of-gear']
 
@@ -94,7 +94,7 @@ def load_csv(analysis):
     for kk,vv in analysis.info.items():
         LOG.info(f'  {kk:>30} : {vv.rstrip()}')
 
-    csvs = [ x for x in analysis.files
+    csvs = [ x for x in analysis.files 
              if x.type == 'tabular data' and x.name in CSV_WHITELIST ]
 
     if len(csvs) > 0:
@@ -137,24 +137,24 @@ for s in project.subjects():
 
             if GEAR_VERSION == '' or analysis.gear_info.version == GEAR_VERSION:
 
-                if analysis.job.state == STATE:
+                if analysis.job.state == STATE: 
 
                     if analysis.info:
-                        if ('longitudinal-step' in analysis.info and
+                        if ('longitudinal-step' in analysis.info and 
                             'completed' in analysis.info['longitudinal-step']):
 
                             if 'analysis-regex' in config:
                                 if not re.search(config['analysis-regex'],
                                     analysis.label):
                                     LOG.warning('analysis-regex "' +
-                                        config['analysis-regex'] +
+                                        config['analysis-regex'] + 
                                         '" mismatch with analysis.label "'+
                                         analysis.label + '"')
                                     continue
 
                                 else:
                                     LOG.info('analysis-regex "' +
-                                        config['analysis-regex'] +
+                                        config['analysis-regex'] + 
                                         '" match with analysis.label "'+
                                         analysis.label + '"')
 
@@ -171,7 +171,7 @@ for s in project.subjects():
                     LOG.warning(f'PROBLEM job state = {analysis.job.state}')
 
             else:
-                LOG.warning(f'IGNORING {GEAR_NAME} version ' +
+                LOG.warning(f'IGNORING {GEAR_NAME} version ' + 
                             f'{analysis.gear_info.version}')
 
         else:
@@ -191,7 +191,7 @@ LOG.info(msg)
 
 if TOTAL_COMPLETED_ANALYSES > 0:
 
-    DF_LIST = [pd.concat(DF_DICT[csv_name],ignore_index=True)
+    DF_LIST = [pd.concat(DF_DICT[csv_name],ignore_index=True) 
                for csv_name in CSV_WHITELIST]
 
     for df,name in zip(DF_LIST,CSV_WHITELIST):
@@ -208,7 +208,7 @@ else:
     LOG.info(f'{log_name} failed')
 
 LOG.info(f'{log_name} returning {RETURN_VALUE}')
-os.sys.exit(RETURN_VALUE)
+sys.exit(RETURN_VALUE)
 
 
 # vi:set autoindent ts=4 sw=4 expandtab : See Vim, :help 'modeline'

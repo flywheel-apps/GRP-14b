@@ -3,7 +3,7 @@ FROM python:3 as base
 
 MAINTAINER Flywheel <support@flywheel.io>
 
-RUN pip install flywheel-sdk==10.3.0 \
+RUN pip install flywheel-sdk==10.7.4 \
         pandas && \
     rm -rf /root/.cache/pip
 

@@ -208,7 +208,4 @@ else:
     LOG.info(f'{log_name} failed')
 
 LOG.info(f'{log_name} returning {RETURN_VALUE}')
-os._exit(RETURN_VALUE)
-
-
-# vi:set autoindent ts=4 sw=4 expandtab : See Vim, :help 'modeline'
+os.sys.exit(RETURN_VALUE)

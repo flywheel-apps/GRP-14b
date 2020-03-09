@@ -3,7 +3,7 @@ FROM python:3 as base
 
 MAINTAINER Flywheel <support@flywheel.io>
 
-RUN pip install flywheel-sdk==10.7.4 \
+RUN pip install flywheel-sdk==11.1.0 \
         pandas && \
     rm -rf /root/.cache/pip
 
@@ -16,6 +16,7 @@ ENV PYTHONUNBUFFERED 1
 
 # Copy executable/manifest to Gear
 COPY manifest.json ${FLYWHEEL}/manifest.json
+COPY utils ${FLYWHEEL}/utils
 COPY run.py ${FLYWHEEL}/run.py
 
 # Configure entrypoint

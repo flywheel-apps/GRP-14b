@@ -14,8 +14,10 @@ import json
 import logging
 import re
 import pandas as pd
+from copy import deepcopy
 
 import flywheel
+from utils.fly.make_file_name_safe import make_file_name_safe
 
 
 CSV_WHITELIST = ['_aparc_thick_left.csv',
@@ -73,11 +75,16 @@ GEAR_VERSION = ''
 if 'version-of-gear' in config:
     GEAR_VERSION = config['version-of-gear']
 
-STATE = 'complete'
-
 TOTAL_COMPLETED_ANALYSES = 0
 COMPLETED_SUBJECT_ANALYSES = 0
 SUMMARY_MESSAGES = []
+
+# a dict of the subjects/sessions found and the number of times each was
+# found (in the job's info):
+#   {"subject.label": {"session.label": N, ...}, ...}
+# n.b. Both subject label and session label were converted to "safe" directory
+# names using e.g. make_file_name_safe(session.label, '_')
+SUBJECTS_SESSIONS = {}
 
 CSV_WHITELIST = [ project.label + name for name in CSV_WHITELIST ]
 
@@ -85,14 +92,44 @@ CSV_WHITELIST = [ project.label + name for name in CSV_WHITELIST ]
 DF_DICT = { csv_name:[] for csv_name in CSV_WHITELIST }
 
 
-def load_csv(analysis):
+def add_blank_cvs(msg, subject_label, analysis_job_id):
+    """Add a blank frame becuase there was an error"""
+
+    for key in DF_DICT.keys():
+        # add an eror mesage instead of a spreadsheet to the list so that
+        # a blank spreadsheet can be added later.
+        DF_DICT[key].append([subject_label, analysis_job_id, msg])
+
+
+def load_csv(analysis, job, subject_label):
     """Load csv files into data frames"""
 
     global LOG, COMPLETED_SUBJECT_ANALYSES
 
     LOG.info('Info:')
     for kk,vv in analysis.info.items():
-        LOG.info(f'  {kk:>30} : {vv.rstrip()}')
+        LOG.info(f'  {kk:>30} : {job.profile.total_time_ms} ms : {vv.rstrip()}')
+
+        # keep count of all subjects and sessions that were seen
+        if kk != 'longitudinal-step':
+
+            if kk == 'BASE':
+                subj = make_file_name_safe(subject_label, '_')
+                sess = 'BASE'
+
+            else:
+                # The Freesuefer subject directory is made from the subject code
+                # and the session label (after unsafe characters were removed)
+                subj, sess = kk.split('-')
+
+            if subj not in SUBJECTS_SESSIONS:
+                SUBJECTS_SESSIONS[subj] = {}
+                SUBJECTS_SESSIONS[subj][sess] = 1
+            else:
+                if sess not in SUBJECTS_SESSIONS[subj]:
+                    SUBJECTS_SESSIONS[subj][sess] = 1
+                else:
+                    SUBJECTS_SESSIONS[subj][sess] += 1
 
     csvs = [ x for x in analysis.files
              if x.type == 'tabular data' and x.name in CSV_WHITELIST ]
@@ -113,12 +150,17 @@ def load_csv(analysis):
                 DF_DICT[cc.name].append(pd.read_csv(path))
 
             LOG.info('')
+        return ''
 
     else:
-        LOG.error(f'PROBLEM No CSV files, I am so sorry. So close.')
+        msg = 'PROBLEM No CSV files'
+        LOG.error(f'{msg}, I am so sorry. So close.')
+        return msg
 
 
 LOG.info(f'Gear name "{GEAR_NAME}"')
+if GEAR_VERSION != '':
+    LOG.info(f'Gear version "{GEAR_VERSION}"')
 
 for s in project.subjects():
 
@@ -137,38 +179,58 @@ for s in project.subjects():
 
             if GEAR_VERSION == '' or analysis.gear_info.version == GEAR_VERSION:
 
-                if analysis.job.state == STATE:
+                if analysis.job.state == 'complete':
 
                     if analysis.info:
-                        if ('longitudinal-step' in analysis.info and
-                            'completed' in analysis.info['longitudinal-step']):
+                        if 'longitudinal-step' in analysis.info:
 
-                            if 'analysis-regex' in config:
-                                if not re.search(config['analysis-regex'],
-                                    analysis.label):
-                                    LOG.warning('analysis-regex "' +
-                                        config['analysis-regex'] +
-                                        '" mismatch with analysis.label "'+
-                                        analysis.label + '"')
-                                    continue
+                            if 'completed' in \
+                                analysis.info['longitudinal-step']:
 
-                                else:
-                                    LOG.info('analysis-regex "' +
-                                        config['analysis-regex'] +
-                                        '" match with analysis.label "'+
-                                        analysis.label + '"')
+                                if 'analysis-regex' in config:
+                                    if not re.search(config['analysis-regex'],
+                                        analysis.label):
+                                        LOG.warning('analysis-regex "' +
+                                            config['analysis-regex'] +
+                                            '" mismatch with analysis.label "'+
+                                            analysis.label + '"')
+                                        continue
 
-                            # here's the meat!
-                            load_csv(analysis)
+                                    else:
+                                        LOG.info('analysis-regex "' +
+                                            config['analysis-regex'] +
+                                            '" match with analysis.label "'+
+                                            analysis.label + '"')
+
+                                job = fw.get_job(analysis.job.id)
+
+                                # here's the meat!
+                                msg = load_csv(analysis, job, subject.label)
+                                if 'PROBLEM' in msg:
+                                    add_blank_cvs(msg, subject.label, 
+                                                  analysis.job.id)
+
+                            else:
+                                msg = 'PROBLEM longitudinal-step is ' + \
+                                    analysis.info['longitudinal-step']
+                                LOG.warning(msg)
+                                add_blank_cvs(msg, subject.label, 
+                                              analysis.job.id)
 
                         else:
-                            LOG.warning('PROBLEM longitudinal-step not found')
+                            msg = 'PROBLEM longitudinal-step not found'
+                            LOG.warning(msg)
+                            add_blank_cvs(msg, subject.label, analysis.job.id)
 
                     else:
-                        LOG.warning(f'PROBLEM analysis.info = {analysis.info}')
+                        msg = f'PROBLEM analysis.info = {analysis.info}'
+                        LOG.warning(msg)
+                        add_blank_cvs(msg, subject.label, analysis.job.id)
 
                 else:
-                    LOG.warning(f'PROBLEM job state = {analysis.job.state}')
+                    msg = f'PROBLEM job state = {analysis.job.state}'
+                    LOG.warning(msg)
+                    add_blank_cvs(msg, subject.label, analysis.job.id)
 
             else:
                 LOG.warning(f'IGNORING {GEAR_NAME} version ' +
@@ -190,6 +252,54 @@ msg = f'Project {project.label} had {TOTAL_COMPLETED_ANALYSES} ' + \
 LOG.info(msg)
 
 if TOTAL_COMPLETED_ANALYSES > 0:
+
+    # get headers for each spreadsheet to create blank entries for failed runs
+    # by finding a valid one in the liest
+    blank_df = {}
+    for key in DF_DICT.keys():  # for each spreadsheet
+        for df in DF_DICT[key]:
+            if isinstance(df, pd.core.frame.DataFrame):
+                blank_df[key] = pd.DataFrame(columns = df.columns)
+                blank_df[key].loc[0] = '-'   # set all values to '-'
+                blank_df[key].loc[0][0] = project.label  # (study)
+
+    # find all failed runs and insert blank spreadsheet entries (in place)
+    for key in DF_DICT.keys():  # for each spreadsheet
+        for ii, df in enumerate(DF_DICT[key]):
+            if isinstance(df, list):
+                DF_DICT[key][ii] = deepcopy(blank_df[key])
+                DF_DICT[key][ii].loc[0][1] = df[0]  # subject.label (scrnum)
+                DF_DICT[key][ii].loc[0][2] = f'job.id={df[1]} {df[2]}'
+                # df[1] is analysis.job.id end df[2] is the rror message
+
+    # Find all sessions for all subjects and add a blank if either is missing
+    sessions = project.sessions()
+    for session in sessions:
+        session_label = make_file_name_safe(session.label, '_')
+        subject_label = make_file_name_safe(session.subject.label, '_')
+        if subject_label not in SUBJECTS_SESSIONS:
+            LOG.error(f'Subject "{subject_label}", Session "{session_label}" '
+                       'was not processed')
+            # add blank to spreadsheets
+            for key in DF_DICT.keys():  # for each spreadsheet
+                DF_DICT[key].append((blank_df[key]))
+                DF_DICT[key][-1].loc[0][1] = subject_label  # (scrnum)
+                DF_DICT[key][-1].loc[0][2] = session_label # (visit)
+        else:
+            if session_label not in SUBJECTS_SESSIONS[subject_label]:
+                LOG.error(f'Session "{session_label}" for Subject '
+                          f'"{subject_label}" was not processed')
+                # add blank to spreadsheets
+                for key in DF_DICT.keys():  # for each spreadsheet
+                    DF_DICT[key].append((blank_df[key]))
+                    DF_DICT[key][-1].loc[0][1] = subject_label  # (scrnum)
+                    DF_DICT[key][-1].loc[0][2] = session_label # (visit)
+            else:
+                num = SUBJECTS_SESSIONS[subject_label][session_label]
+                if num > 1:
+                    LOG.error(f'Session "{session_label}" for Subject '
+                        f'"{subject_label}" was processed {num} times'
+                        f", what's up with that?")
 
     DF_LIST = [pd.concat(DF_DICT[csv_name],ignore_index=True)
                for csv_name in CSV_WHITELIST]
